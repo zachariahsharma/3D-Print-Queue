@@ -1,57 +1,642 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
-<head>
-  <title>3D Print Queue</title>
-  <style>
-    table, th, td { border: 1px solid black; border-collapse: collapse; }
-    th, td { padding: 5px; }
-  </style>
-</head>
-<body>
-  <h1>3D Print Queue</h1>
-  <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data">
-    File: <input type="file" name="file" accept=".3mf" required>
-    Plate #: <input type="text" name="plate" required>
-    <input type="submit" value="Add to Queue">
-  </form>
+  <head>
+    <title>3D Print Queue</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
 
-  <h2>Queue</h2>
-  <table>
-    <tr><th>File</th><th>Plate #</th><th>Status</th><th>Actions</th></tr>
-    {% for item in queue %}
-    <tr>
-      <td>{{ item.original_name }}</td>
-      <td>{{ item.plate }}</td>
-      <td>{{ item.status }}</td>
-      <td>
-        {% if item.status != 'printed' %}
-          <a href="{{ url_for('move', item_id=item.id, direction='up') }}">&uarr;</a>
-          <a href="{{ url_for('move', item_id=item.id, direction='down') }}">&darr;</a>
-          {% if item.status != 'printing' %}
-            <a href="{{ url_for('start', item_id=item.id) }}">Start</a>
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        line-height: 1.6;
+        color: #333;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 20px;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 15px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+      }
+
+      .header {
+        background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+        color: white;
+        padding: 30px;
+        text-align: center;
+      }
+
+      .header h1 {
+        font-size: 2.5rem;
+        font-weight: 300;
+        margin-bottom: 10px;
+      }
+
+      .content {
+        padding: 30px;
+      }
+
+      .upload-section {
+        background: #f8f9fa;
+        padding: 25px;
+        border-radius: 10px;
+        margin-bottom: 30px;
+        border: 2px dashed #dee2e6;
+        transition: all 0.3s ease;
+      }
+
+      .upload-section:hover {
+        border-color: #667eea;
+        background: #f0f2ff;
+      }
+
+      .upload-form {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+        align-items: center;
+      }
+
+      .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+
+      .form-group label {
+        font-weight: 600;
+        color: #495057;
+        font-size: 0.9rem;
+      }
+
+      .form-group input[type="file"],
+      .form-group input[type="text"] {
+        padding: 12px 15px;
+        border: 2px solid #dee2e6;
+        border-radius: 8px;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+        background: white;
+      }
+
+      .form-group input[type="file"]:focus,
+      .form-group input[type="text"]:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+      }
+
+      /* Custom file input styling */
+      .form-group input[type="file"] {
+        position: relative;
+        cursor: pointer;
+      }
+
+      .form-group input[type="file"]::-webkit-file-upload-button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 8px 16px;
+        border: none;
+        border-radius: 6px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        margin-right: 10px;
+      }
+
+      .form-group input[type="file"]::-webkit-file-upload-button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+      }
+
+      .form-group input[type="file"]::-moz-file-upload-button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 8px 16px;
+        border: none;
+        border-radius: 6px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        margin-right: 10px;
+      }
+
+      .form-group input[type="file"]::-moz-file-upload-button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+      }
+
+      .btn {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 12px 25px;
+        border: none;
+        border-radius: 8px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        display: inline-block;
+      }
+
+      .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+      }
+
+      .btn:active {
+        transform: translateY(0);
+      }
+
+      .section {
+        margin-bottom: 40px;
+      }
+
+      .section h2 {
+        color: #2c3e50;
+        font-size: 1.8rem;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 3px solid #667eea;
+        display: inline-block;
+      }
+
+      .queue-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: white;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+      }
+
+      .queue-table th {
+        background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+        color: white;
+        padding: 15px;
+        text-align: left;
+        font-weight: 600;
+      }
+
+      .queue-table td {
+        padding: 15px;
+        border-bottom: 1px solid #dee2e6;
+        vertical-align: middle;
+      }
+
+      .queue-table tr:hover {
+        background: #f8f9fa;
+      }
+
+      .queue-table tr:last-child td {
+        border-bottom: none;
+      }
+
+      .status {
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .status.queued {
+        background: #fff3cd;
+        color: #856404;
+      }
+
+      .status.printing {
+        background: #d1ecf1;
+        color: #0c5460;
+        animation: pulse 2s infinite;
+      }
+
+      .status.printed {
+        background: #d4edda;
+        color: #155724;
+      }
+
+      @keyframes pulse {
+        0% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.7;
+        }
+        100% {
+          opacity: 1;
+        }
+      }
+
+      .actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .action-btn {
+        padding: 6px 12px;
+        border: none;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        cursor: pointer;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        font-weight: 500;
+      }
+
+      .action-btn.move {
+        background: #6c757d;
+        color: white;
+      }
+
+      .action-btn.start {
+        background: #28a745;
+        color: white;
+      }
+
+      .action-btn.finish {
+        background: #17a2b8;
+        color: white;
+      }
+
+      .action-btn.delete {
+        background: #dc3545;
+        color: white;
+      }
+
+      .action-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      }
+
+      .status-list {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+      }
+
+      .status-list ul {
+        list-style: none;
+      }
+
+      .status-list li {
+        padding: 12px 0;
+        border-bottom: 1px solid #dee2e6;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .status-list li:last-child {
+        border-bottom: none;
+      }
+
+      .status-list li::before {
+        content: "🖨️";
+        font-size: 1.2rem;
+      }
+
+      .empty-state {
+        text-align: center;
+        padding: 40px;
+        color: #6c757d;
+        font-style: italic;
+      }
+      #addtoqueue {
+        margin-top: 25px;
+      }
+      @media (max-width: 768px) {
+        body {
+          padding: 10px;
+        }
+
+        .header h1 {
+          font-size: 2rem;
+        }
+
+        .upload-form {
+          flex-direction: column;
+          align-items: stretch;
+        }
+
+        .queue-table {
+          font-size: 0.9rem;
+        }
+
+        .queue-table th,
+        .queue-table td {
+          padding: 10px 8px;
+        }
+
+        .actions {
+          flex-direction: column;
+        }
+
+        .action-btn {
+          text-align: center;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .content {
+          padding: 20px;
+        }
+
+        .header {
+          padding: 20px;
+        }
+
+        .upload-section {
+          padding: 20px;
+        }
+      }
+
+      .printer-status {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+        margin-bottom: 20px;
+      }
+
+      .status-card {
+        background: white;
+        border-radius: 8px;
+        padding: 15px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        flex: 1;
+        min-width: 150px;
+      }
+
+      .status-card h3 {
+        margin: 0 0 10px 0;
+        font-size: 1rem;
+        color: #495057;
+      }
+
+      .status-value {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #2c3e50;
+      }
+
+      .printer-state {
+        background: #e3f2fd;
+        border-left: 4px solid #2196f3;
+        padding: 10px;
+        margin: 10px 0;
+        border-radius: 4px;
+      }
+
+      .printer-state.error {
+        background: #ffebee;
+        border-left-color: #f44336;
+      }
+
+      .printer-state.success {
+        background: #e8f5e8;
+        border-left-color: #4caf50;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>3D Print Queue</h1>
+      </div>
+
+      <div class="content">
+        <div class="upload-section">
+          <form
+            action="{{ url_for('upload') }}"
+            method="post"
+            enctype="multipart/form-data"
+            class="upload-form"
+          >
+            <div class="form-group">
+              <label for="file">File:</label>
+              <input type="file" id="file" name="file" accept=".3mf" required />
+            </div>
+            <div class="form-group">
+              <label for="plate">Plate #:</label>
+              <input type="text" id="plate" name="plate" required />
+            </div>
+            <button type="submit" class="btn" id="addtoqueue">
+              Add to Queue
+            </button>
+          </form>
+        </div>
+
+        <div class="section">
+          <h2>Printer Status</h2>
+          <div class="status-list" id="printer-status">
+            <div class="printer-status">
+              <div class="status-card">
+                <h3>Total Items</h3>
+                <div class="status-value" id="total-items">-</div>
+              </div>
+              <div class="status-card">
+                <h3>Queued</h3>
+                <div class="status-value" id="queued-items">-</div>
+              </div>
+              <div class="status-card">
+                <h3>Printing</h3>
+                <div class="status-value" id="printing-items">-</div>
+              </div>
+              <div class="status-card">
+                <h3>Completed</h3>
+                <div class="status-value" id="printed-items">-</div>
+              </div>
+            </div>
+            <div class="printer-state" id="printer-state">
+              <p>Loading printer status...</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>Queue</h2>
+          {% if queue %}
+          <table class="queue-table">
+            <thead>
+              <tr>
+                <th>File</th>
+                <th>Plate #</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in queue %}
+              <tr>
+                <td>{{ item.original_name }}</td>
+                <td>{{ item.plate }}</td>
+                <td>
+                  <span class="status {{ item.status }}"
+                    >{{ item.status }}</span
+                  >
+                </td>
+                <td>
+                  {% if item.status != 'printed' %}
+                  <div class="actions">
+                    <a
+                      href="{{ url_for('move', item_id=item.id, direction='up') }}"
+                      class="action-btn move"
+                      >&uarr;</a
+                    >
+                    <a
+                      href="{{ url_for('move', item_id=item.id, direction='down') }}"
+                      class="action-btn move"
+                      >&darr;</a
+                    >
+                    {% if item.status != 'printing' %}
+                    <a
+                      href="{{ url_for('start', item_id=item.id) }}"
+                      class="action-btn start"
+                      >Start</a
+                    >
+                    {% endif %} {% if item.status == 'printing' %}
+                    <a
+                      href="{{ url_for('finish', item_id=item.id) }}"
+                      class="action-btn finish"
+                      >Finish</a
+                    >
+                    {% endif %}
+                    <a
+                      href="{{ url_for('delete', item_id=item.id) }}"
+                      class="action-btn delete"
+                      >Delete</a
+                    >
+                  </div>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <div class="empty-state">
+            <p>No items in queue. Upload a file to get started!</p>
+          </div>
           {% endif %}
-          {% if item.status == 'printing' %}
-            <a href="{{ url_for('finish', item_id=item.id) }}">Finish</a>
-          {% endif %}
-          <a href="{{ url_for('delete', item_id=item.id) }}">Delete</a>
-        {% endif %}
-      </td>
-    </tr>
-    {% endfor %}
-  </table>
+        </div>
 
-  <h2>Currently Printing</h2>
-  <ul>
-    {% for item in queue if item.status == 'printing' %}
-      <li>{{ item.original_name }} (Plate {{ item.plate }})</li>
-    {% endfor %}
-  </ul>
+        <div class="section">
+          <h2>Currently Printing</h2>
+          <div class="status-list">
+            {% set printing_items = queue | selectattr('status', 'equalto',
+            'printing') | list %} {% if printing_items %}
+            <ul>
+              {% for item in printing_items %}
+              <li>{{ item.original_name }} (Plate {{ item.plate }})</li>
+              {% endfor %}
+            </ul>
+            {% else %}
+            <div class="empty-state">
+              <p>No items currently printing</p>
+            </div>
+            {% endif %}
+          </div>
+        </div>
 
-  <h2>Printed</h2>
-  <ul>
-    {% for item in queue if item.status == 'printed' %}
-      <li>{{ item.original_name }} (Plate {{ item.plate }})</li>
-    {% endfor %}
-  </ul>
-</body>
+        <div class="section">
+          <h2>Printed</h2>
+          <div class="status-list">
+            {% set printed_items = queue | selectattr('status', 'equalto',
+            'printed') | list %} {% if printed_items %}
+            <ul>
+              {% for item in printed_items %}
+              <li>{{ item.original_name }} (Plate {{ item.plate }})</li>
+              {% endfor %}
+            </ul>
+            {% else %}
+            <div class="empty-state">
+              <p>No completed prints yet</p>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      function updatePrinterStatus() {
+        fetch("/printer_status")
+          .then((response) => response.json())
+          .then((data) => {
+            // Update status cards
+            console.log(data);
+            document.getElementById("total-items").textContent =
+              data.queue_status.total_items;
+            document.getElementById("queued-items").textContent =
+              data.queue_status.queued;
+            document.getElementById("printing-items").textContent =
+              data.queue_status.printing;
+            document.getElementById("printed-items").textContent =
+              data.queue_status.printed;
+
+            // Update printer state
+            const stateElement = document.getElementById("printer-state");
+            if (data.status === "connected") {
+              const printerState = data.printer_state || "Unknown";
+              const progress = data.printer_state?.print?.progress || 0;
+              const timeRemaining =
+                data.printer_state?.print?.remaining_time || 0;
+
+              let stateHtml = `<strong>Printer State:</strong> ${printerState}`;
+              if (printerState === "PRINTING") {
+                stateHtml += `<br><strong>Progress:</strong> ${Math.round(
+                  progress * 100
+                )}%`;
+                if (timeRemaining > 0) {
+                  const hours = Math.floor(timeRemaining / 3600);
+                  const minutes = Math.floor((timeRemaining % 3600) / 60);
+                  stateHtml += `<br><strong>Time Remaining:</strong> ${hours}h ${minutes}m`;
+                }
+              }
+
+              stateElement.innerHTML = stateHtml;
+              stateElement.className = "printer-state success";
+            } else {
+              stateElement.innerHTML = `<strong>Connection Error:</strong> ${data.error}`;
+              stateElement.className = "printer-state error";
+            }
+          })
+          .catch((error) => {
+            document.getElementById(
+              "printer-state"
+            ).innerHTML = `<strong>Error:</strong> ${error.message}`;
+            document.getElementById("printer-state").className =
+              "printer-state error";
+          });
+      }
+
+      // Update status every 10 seconds
+      updatePrinterStatus();
+      setInterval(updatePrinterStatus, 10000);
+
+      // Auto-refresh the page every 30 seconds to update queue
+      setTimeout(() => {
+        location.reload();
+      }, 30000);
+    </script>
+</footer>
+    <footer style="text-align: center; padding: 20px; color: #ffffff; font-size: 0.9rem;">
+      Made by Zachariah Sharma
+    </footer>
+  </body>
 </html>
