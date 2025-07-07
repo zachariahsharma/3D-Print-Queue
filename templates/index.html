@@ -1,0 +1,57 @@
+<!doctype html>
+<html>
+<head>
+  <title>3D Print Queue</title>
+  <style>
+    table, th, td { border: 1px solid black; border-collapse: collapse; }
+    th, td { padding: 5px; }
+  </style>
+</head>
+<body>
+  <h1>3D Print Queue</h1>
+  <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data">
+    File: <input type="file" name="file" accept=".3mf" required>
+    Plate #: <input type="text" name="plate" required>
+    <input type="submit" value="Add to Queue">
+  </form>
+
+  <h2>Queue</h2>
+  <table>
+    <tr><th>File</th><th>Plate #</th><th>Status</th><th>Actions</th></tr>
+    {% for item in queue %}
+    <tr>
+      <td>{{ item.original_name }}</td>
+      <td>{{ item.plate }}</td>
+      <td>{{ item.status }}</td>
+      <td>
+        {% if item.status != 'printed' %}
+          <a href="{{ url_for('move', item_id=item.id, direction='up') }}">&uarr;</a>
+          <a href="{{ url_for('move', item_id=item.id, direction='down') }}">&darr;</a>
+          {% if item.status != 'printing' %}
+            <a href="{{ url_for('start', item_id=item.id) }}">Start</a>
+          {% endif %}
+          {% if item.status == 'printing' %}
+            <a href="{{ url_for('finish', item_id=item.id) }}">Finish</a>
+          {% endif %}
+          <a href="{{ url_for('delete', item_id=item.id) }}">Delete</a>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <h2>Currently Printing</h2>
+  <ul>
+    {% for item in queue if item.status == 'printing' %}
+      <li>{{ item.original_name }} (Plate {{ item.plate }})</li>
+    {% endfor %}
+  </ul>
+
+  <h2>Printed</h2>
+  <ul>
+    {% for item in queue if item.status == 'printed' %}
+      <li>{{ item.original_name }} (Plate {{ item.plate }})</li>
+    {% endfor %}
+  </ul>
+</body>
+</html>
