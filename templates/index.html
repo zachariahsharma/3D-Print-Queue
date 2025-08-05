@@ -3,6 +3,13 @@
   <head>
     <title>3D Print Queue</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="3D Print Queue Manager for Bambu Lab printers" />
+    <meta name="theme-color" content="#667eea" />
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="shortcut icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='favicon.ico') }}">
     <style>
       * {
         margin: 0;
@@ -411,6 +418,44 @@
         background: #e8f5e8;
         border-left-color: #4caf50;
       }
+
+      .printer-details {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+        margin-top: 20px;
+      }
+
+      .detail-card {
+        background: white;
+        border-radius: 8px;
+        padding: 15px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        flex: 1;
+        min-width: 150px;
+        border-left: 4px solid #667eea;
+      }
+
+      .detail-card h3 {
+        margin: 0 0 10px 0;
+        font-size: 0.9rem;
+        color: #495057;
+        font-weight: 600;
+      }
+
+      .detail-value {
+        font-size: 1.2rem;
+        font-weight: bold;
+        color: #2c3e50;
+      }
+
+      .detail-value.fan-on {
+        color: #28a745;
+      }
+
+      .detail-value.fan-off {
+        color: #dc3545;
+      }
     </style>
   </head>
   <body>
@@ -464,6 +509,20 @@
             </div>
             <div class="printer-state" id="printer-state">
               <p>Loading printer status...</p>
+            </div>
+            <div class="printer-details" id="printer-details">
+              <div class="detail-card">
+                <h3>Print Progress</h3>
+                <div class="detail-value" id="print-percentage">-</div>
+              </div>
+              <div class="detail-card">
+                <h3>Time Remaining</h3>
+                <div class="detail-value" id="time-remaining">-</div>
+              </div>
+              <div class="detail-card">
+                <h3>Fan Status</h3>
+                <div class="detail-value" id="fan-status">-</div>
+              </div>
             </div>
           </div>
         </div>
@@ -554,12 +613,11 @@
         </div>
 
         <div class="section">
-          <h2>Printed</h2>
+          <h2>Finished Prints</h2>
           <div class="status-list">
-            {% set printed_items = queue | selectattr('status', 'equalto',
-            'printed') | list %} {% if printed_items %}
+            {% if finished_items %}
             <ul>
-              {% for item in printed_items %}
+              {% for item in finished_items %}
               <li>{{ item.original_name }} (Plate {{ item.plate }})</li>
               {% endfor %}
             </ul>
@@ -593,27 +651,64 @@
             const stateElement = document.getElementById("printer-state");
             if (data.status === "connected") {
               const printerState = data.printer_state || "Unknown";
-              const progress = data.printer_state?.print?.progress || 0;
-              const timeRemaining =
-                data.printer_state?.print?.remaining_time || 0;
-
-              let stateHtml = `<strong>Printer State:</strong> ${printerState}`;
-              if (printerState === "PRINTING") {
-                stateHtml += `<br><strong>Progress:</strong> ${Math.round(
-                  progress * 100
-                )}%`;
-                if (timeRemaining > 0) {
-                  const hours = Math.floor(timeRemaining / 3600);
-                  const minutes = Math.floor((timeRemaining % 3600) / 60);
-                  stateHtml += `<br><strong>Time Remaining:</strong> ${hours}h ${minutes}m`;
-                }
-              }
-
-              stateElement.innerHTML = stateHtml;
+              stateElement.innerHTML = `<strong>Printer State:</strong> ${printerState}`;
               stateElement.className = "printer-state success";
+              
+              // Update printer details
+              const percentageElement = document.getElementById("print-percentage");
+              const timeElement = document.getElementById("time-remaining");
+              const fanElement = document.getElementById("fan-status");
+              
+              // Update print percentage
+              if (data.print_percentage !== null && data.print_percentage !== undefined) {
+                percentageElement.textContent = `${data.print_percentage}%`;
+              } else {
+                percentageElement.textContent = "N/A";
+              }
+              
+              // Update time remaining
+              if (data.remaining_time !== null && data.remaining_time !== undefined) {
+                const timeInSeconds = parseInt(data.remaining_time);
+                if (timeInSeconds > 0) {
+                  const hours = Math.floor(timeInSeconds / 60);
+                  const minutes = Math.floor((timeInSeconds % 60) / 1);
+                  //const seconds = timeInSeconds % 60;
+                  
+                  if (hours > 0) {
+                    timeElement.textContent = `${hours}h ${minutes}m`;
+                  } else if (minutes > 0) {
+                    timeElement.textContent = `${minutes}m`;
+                  } else {
+                    //timeElement.textContent = `${seconds}s`;
+                  }
+                } else {
+                  timeElement.textContent = "N/A";
+                }
+              } else {
+                timeElement.textContent = "N/A";
+              }
+              
+              // Update fan status
+              if (data.fan_status !== null && data.fan_status !== undefined) {
+                if (data.fan_status) {
+                  fanElement.textContent = "ON";
+                  fanElement.className = "detail-value fan-on";
+                } else {
+                  fanElement.textContent = "OFF";
+                  fanElement.className = "detail-value fan-off";
+                }
+              } else {
+                fanElement.textContent = "Unknown";
+                fanElement.className = "detail-value";
+              }
             } else {
               stateElement.innerHTML = `<strong>Connection Error:</strong> ${data.error}`;
               stateElement.className = "printer-state error";
+              
+              // Clear details on error
+              document.getElementById("print-percentage").textContent = "N/A";
+              document.getElementById("time-remaining").textContent = "N/A";
+              document.getElementById("fan-status").textContent = "N/A";
             }
           })
           .catch((error) => {
